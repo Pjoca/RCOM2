@@ -4,3 +4,5 @@
 # Ignore everything inside the bin folder
 bin/*
 
+# Ignore file being tranfered
+social-contract.txt
