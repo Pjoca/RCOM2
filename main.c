@@ -37,8 +37,8 @@ int main(int argc, char *argv[]) {
     printf("[Success] Login.\n");
 
     // entering passive mode & establishing data connection
-    char buffer[BUFFER_SIZE] = {0};
-    int port = enter_passive_mode(socket_fd, buffer);
+    char address[BUFFER_SIZE] = {0};
+    int port = enter_passive_mode(socket_fd, address);
     if (port < 0) {
         fprintf(stderr, "[Error] Entering the passive mode.\n");
         close(socket_fd);
@@ -46,14 +46,14 @@ int main(int argc, char *argv[]) {
     }
 
     // establishing data connection
-    int data_fd = open_connection(buffer, port);
+    int data_fd = open_connection(address, port);
     if (data_fd < 0) {
-        fprintf(stderr, "[Error] Establishing the data connection to %s:%d.\n", buffer, port);
+        fprintf(stderr, "[Error] Establishing the data connection to %s:%d.\n", address, port);
         close(socket_fd);
         exit(-1);
     }
 
-    printf("[Success] Connection established at %s:%d\n", buffer, port);
+    printf("[Success] Connection established at %s:%d\n", address, port);
 
     get_file(socket_fd, url, data_fd);
 
