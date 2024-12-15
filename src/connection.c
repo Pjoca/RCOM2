@@ -1,4 +1,4 @@
-#include "connection.h"
+#include "../include/connection.h"
 
 #define CHECK_ALLOC(ptr) if ((ptr) == NULL) { perror("Memory allocation failed"); exit(EXIT_FAILURE); }
 

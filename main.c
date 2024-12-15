@@ -4,7 +4,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include "connection.h"
+#include "include/connection.h"
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {

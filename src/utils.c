@@ -1,4 +1,4 @@
-#include "utils.h"
+#include "../include/utils.h"
 
 #define CHECK_ALLOC(ptr) if ((ptr) == NULL) { perror("Memory allocation failed"); exit(EXIT_FAILURE); }
 

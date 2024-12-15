@@ -1,0 +1,5 @@
+# Ignore everything inside the bin folder
+bin/*
+
+# Do not ignore the bin folder itself
+!bin/
