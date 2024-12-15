@@ -1,6 +1,6 @@
 /**
  * @file utils.h
- * @brief Describes utility functions such as I/O handling.
+ * @brief Utility functions description.
  * 
  */
 
@@ -28,53 +28,53 @@ typedef struct Url {
 } Url;
 
 /**
- * @brief Fill a Url field from a regex result.
+ * @brief Fill url field from input using regex.
  * 
- * @param field Destination.
- * @param url_str Original url string.
- * @param reg Regex result.
- * @return int Returns 0 upon success, 1 otherwise.
+ * @param field Destination field.
+ * @param url_str Original url in string format.
+ * @param reg Final result in regex format.
+ * @return int Returns 0 when successfull and 1 otherwise.
  */
-int regGroupCopy(char* field, char* url_str, regmatch_t reg);
+int reg_group_copy(char* field, char* url_str, regmatch_t reg);
 
 /**
- * @brief Parse a url and store the individual fields.
+ * @brief Parse FTP URL in string format and extract its components.
  * 
- * @param url_str Original url string.
- * @param url Url struct to store different fields.
- * @return int Returns 0 upon success, 1 otherwise.
+ * @param url_str Original url in string format.
+ * @param url Url structure to store its fields.
+ * @return int Returns 0 when successfull and 1 otherwise.
  */
-int parseUrl(char* url_str, Url* url);
+int parse_url(char* url_str, Url* url);
 
 /**
- * @brief Get a file name from a file path.
+ * @brief Get filename from path.
  * 
- * @param path File path.
- * @return char* File name.
+ * @param path Path of the specified file.
+ * @return char* Name of the file.
  */
-char* getFileName(char* path);
+char* get_file_name(char* path);
 
 /**
- * @brief Read a line from a socket.
+ * @brief Reads line from socket.
  * 
- * @param socket Socket file descriptor.
- * @param buf Pointer to store the line read.
- * @return Returns 0 upon success, -1 otherwise.
+ * @param socket Socket descriptor.
+ * @param buf Store the line that was read.
+ * @return Returns 0 when successfull and -1 otherwise.
  */
-int getSocketLine(int sockfd, char* line);
+int get_socket_line(int sockfd, char* line);
 
 /**
- * @brief Verify is the connection return the right code.
+ * @brief Verifies the connection and returns the correct code.
  * 
- * @param socket Socket file descriptor.
- * @param expected Expected status code, e.g. "220".
- * @return int 1 if the code is correct, -1 for error, and 0 otherwise
+ * @param socket Socket descriptor.
+ * @param expected The status code that is expected.
+ * @return int Retunrs 1 if code correct, -1 if error was found and 0 in the remaining scenarios.
  */
-int readCode(int sockfd, char* expected);
+int read_code(int sockfd, char* expected);
 
 /**
- * @brief Read a socket until the end.
+ * @brief Reads complete socket.
  * 
- * @param socket Socket file descriptor.
+ * @param socket Socket descriptor.
  */
-void cleanSocket(int sockfd);
+void clean_socket(int sockfd);

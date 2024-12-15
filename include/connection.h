@@ -1,6 +1,6 @@
 /**
  * @file connection.h
- * @brief Describes functions that work with tcp connections.
+ * @brief Describes the functions interacting with the TCP connections.
  * 
  */
 
@@ -22,43 +22,43 @@
 
 
 /**
- * @brief Creates a socket and connects to the server specified in url.
+ * @brief Creates a socket and connects it to the server that is specified in URL.
  * 
- * @return int Returns the socket's file descriptor.
+ * @return int Returns sockets file descriptor.
  */
-int openConnection(const char* address, int port);
+int open_connection(const char* address, int port);
 
 /**
- * @brief Creates a connection to be used for control.
+ * @brief Creates connection used for control.
  * 
- * @param url Url struct containing the url of the connection to be opened.
- * @return int Returns the socket's file descriptor.
+ * @param url Url struct that contains the url of the connection the needs to be opened.
+ * @return int Returns sockets file descriptor.
  */
-int openControlConnection(Url url);
+int open_control_connection(Url url);
 
 /**
- * @brief Login into the tcp connection.
+ * @brief Login in TCP connection.
  * 
  * @param sockfd 
- * @param url Previously parsed url that contains the credentials (or not).
- * @return int Returns 0 on success.
+ * @param url URL already parsed which may contain the credentials.
+ * @return int Returns 0 when successfull.
  */
 int login(int sockfd, Url url);
 
 /**
- * @brief Enter passive mode.
+ * @brief Entering the passive mode.
  * 
- * @param sockfd Socket file descriptor.
- * @param address String to be filled with the address given by the server.
- * @return int Port number where server awaits connection.
+ * @param sockfd Socket descriptor.
+ * @param address Will be filled with the address provided by the server.
+ * @return int Port number where the server is waiting for a connection.
  */
-int enterPassiveMode(int sockfd, char* address);
+int enter_passive_mode(int sockfd, char* address);
 
 /**
- * @brief Get the File from the data connection.
+ * @brief Get file from data connection.
  * 
- * @param sockfd Control socket file descriptor.
- * @param url Parsed url struct.
- * @param datafd Data socket file descriptor.
+ * @param sockfd Socket file descriptor.
+ * @param url URL already parsed.
+ * @param datafd Data socket descriptor.
  */
-void getFile(int sockfd, Url url, int datafd);
+void get_file(int sockfd, Url url, int datafd);

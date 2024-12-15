@@ -7,56 +7,54 @@
 #include "include/connection.h"
 
 int main(int argc, char *argv[]) {
+    // incorrect usage of the makefile
     if (argc < 2) {
-        fprintf(stderr, "Usage:\n\t./download [file_path]\n");
+        fprintf(stderr, "[Error] Correct usage:\n\t./download [file_path]\n");
         exit(EXIT_FAILURE);
     }
 
     Url url;
-    if (parseUrl(argv[1], &url)) {
-        fprintf(stderr, "The provided URL is not valid.\n");
+    if (parse_url(argv[1], &url)) {
+        fprintf(stderr, "[Error] Invalid URL.\n");
         exit(EXIT_FAILURE);
     }
 
-    // Open a TCP connection at the given URL
-    int sockfd = openControlConnection(url);
+    // open control connection
+    int sockfd = open_control_connection(url);
     if (sockfd < 0) {
-        fprintf(stderr, "Failed to establish control connection.\n");
+        fprintf(stderr, "[Error] Establishing the control connection.\n");
         exit(EXIT_FAILURE);
     }
+    printf("[Success] Connection established at %s\n", url.host);
 
-    printf("Connection established: %s\n", url.host);
-
+    // login to ftp server
     if (login(sockfd, url) != 0) {
-        fprintf(stderr, "Login failed.\n");
+        fprintf(stderr, "[Error] Login failed.\n");
         close(sockfd);
         exit(EXIT_FAILURE);
     }
+    printf("[Success] Logged in\n");
 
-    printf("Logged in\n");
-
-    // Enter passive mode and establish a data connection
+    // entering passive mode & establishing data connection
     char address[BUFFER_SIZE] = {0};
-    int port = enterPassiveMode(sockfd, address);
+    int port = enter_passive_mode(sockfd, address);
     if (port < 0) {
-        fprintf(stderr, "Failed to enter passive mode.\n");
+        fprintf(stderr, "[Error] Entering the passive mode.\n");
         close(sockfd);
         exit(EXIT_FAILURE);
     }
 
-    int datafd = openConnection(address, port);
+    // establishing data connection
+    int datafd = open_connection(address, port);
     if (datafd < 0) {
-        fprintf(stderr, "Failed to establish data connection to %s:%d.\n", address, port);
+        fprintf(stderr, "[Error] Establishing the data connection to %s:%d.\n", address, port);
         close(sockfd);
         exit(EXIT_FAILURE);
     }
 
-    printf("Connection established: %s:%d\n", address, port);
+    printf("[Success] Connection established at %s:%d\n", address, port);
 
-    /*if (getFile(sockfd, url, datafd) != 0) {
-        fprintf(stderr, "Failed to retrieve file.\n");
-    }*/
-    getFile(sockfd, url, datafd);
+    get_file(sockfd, url, datafd);
 
     close(sockfd);
     close(datafd);

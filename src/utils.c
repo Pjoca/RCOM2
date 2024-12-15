@@ -1,17 +1,25 @@
 #include "../include/utils.h"
 
-#define CHECK_ALLOC(ptr) if ((ptr) == NULL) { perror("Memory allocation failed"); exit(EXIT_FAILURE); }
+#define CHECK_ALLOC(ptr) if ((ptr) == NULL) { perror("[Error] Allocating memory"); exit(EXIT_FAILURE); }
 
-int regGroupCopy(char* field, char* url_str, regmatch_t reg) {
+int reg_group_copy(char* field, char* url_str, regmatch_t reg) {
+    // no match
     if (reg.rm_so == -1) return 1;
+
+    // calculate match length
     int dist = reg.rm_eo - reg.rm_so;
+
+    // copy the matched substring
     memcpy(field, &url_str[reg.rm_so], dist);
     field[dist] = '\0';
     return 0;
 }
 
-int parseUrl(char* url_str, Url* url) {
+int parse_url(char* url_str, Url* url) {
+    // defining the regular expression
     const char *regex ="ftp://(([^/:].+):([^/:@].+)@)*([^/]+)/(.+)";
+
+    // allocate memory for every component
     url->user = malloc(BUFFER_SIZE);
     url->password = malloc(BUFFER_SIZE);
     url->host = malloc(BUFFER_SIZE);
@@ -20,19 +28,22 @@ int parseUrl(char* url_str, Url* url) {
     regex_t regex_comp;
     regmatch_t groups[MAX_GROUPS];
 
+    // compiling the regular expression
     if (regcomp(&regex_comp, regex, REG_EXTENDED)) {
-        fprintf(stderr, "Failed to compile regex\n");
+        fprintf(stderr, "[Error] Compiling the regex expression.\n");
         return 1;
     }
 
+    // executing the regular expression
     if (regexec(&regex_comp, url_str, MAX_GROUPS, groups, 0)) {
-        fprintf(stderr, "Regex execution failed\n");
+        fprintf(stderr, "[Error] Executing the regex expression.\n");
         regfree(&regex_comp);
         return 1;
     }
 
+    // extracts user and password in case it existsor if it's anonymous
     if (groups[2].rm_so != -1) {
-        if (regGroupCopy(url->user, url_str, groups[2]) || regGroupCopy(url->password, url_str, groups[3])) {
+        if (reg_group_copy(url->user, url_str, groups[2]) || reg_group_copy(url->password, url_str, groups[3])) {
             regfree(&regex_comp);
             return 1;
         }
@@ -41,8 +52,8 @@ int parseUrl(char* url_str, Url* url) {
         strncpy(url->password, "", BUFFER_SIZE);
     }
 
-
-    if (regGroupCopy(url->host, url_str, groups[4]) || regGroupCopy(url->path, url_str, groups[5])) {
+    // extracts the host and the path of the url provided
+    if (reg_group_copy(url->host, url_str, groups[4]) || reg_group_copy(url->path, url_str, groups[5])) {
         regfree(&regex_comp);
         return 1;
     }
@@ -51,16 +62,16 @@ int parseUrl(char* url_str, Url* url) {
     return 0;
 }
 
-char* getFileName(char* path) {
+char* get_file_name(char* path) {
     char *name = strrchr(path, '/');
     if (name == NULL) return path;
     return name + 1;
 }
 
-int getSocketLine(int sockfd, char* line) {
+int get_socket_line(int sockfd, char* line) {
     FILE* socket = fdopen(sockfd, "r");
     if (!socket) {
-        perror("Failed to open socket as FILE");
+        perror("[Error] Opening the socket as a file.\n");
         return -1;
     }
 
@@ -79,36 +90,44 @@ int getSocketLine(int sockfd, char* line) {
     return 0;
 }
 
-int readCode(int sockfd, char* expected) {
+int read_code(int sockfd, char* expected) {
+    // allocate memory for the buffer
     char* buf = (char*)(malloc(BUFFER_SIZE));
     
-    if (getSocketLine(sockfd, buf) != 0) {
-        perror("Opening connection failed.\n");
+    // gets socket line
+    if (get_socket_line(sockfd, buf) != 0) {
+        perror("[Error] Opening the connection.\n");
         exit(EXIT_FAILURE);
     }
     buf[3] = '\0';
+
+    // compare status code with the expected code
     int res = (strcmp(buf, expected) == 0);
     free(buf);
     return res;
 }
 
-void cleanSocket(int sockfd) {
+void clean_socket(int sockfd) {
+    // check if data is available in the socket
     int count;
     if (ioctl(sockfd, FIONREAD, &count) < 0 || count <= 0) return;
 
+    // open socket as a file
     FILE* socket = fdopen(sockfd, "r");
     if (!socket) {
-        perror("Failed to open socket as FILE");
+        perror("[Error] Opening the socket as a file.\n");
         return;
     }
 
     char* buf = NULL;
     size_t size = 0;
 
+    // read line from the socket
     while (getline(&buf, &size, socket) > 0) {
         if (buf[3] != '-') break;
     }
 
+    // free resources and close socket
     free(buf);
     fclose(socket);
 }
