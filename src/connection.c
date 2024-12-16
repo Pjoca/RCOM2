@@ -1,86 +1,208 @@
 #include "../include/connection.h"
 
-#define CHECK_ALLOC(ptr) if ((ptr) == NULL) { perror("[Error] Allocating memory.\n"); exit(EXIT_FAILURE); }
+#define CHECK_ALLOC(ptr) if ((ptr) == NULL) { perror("[CONSOLE] Allocating memory.\n"); exit(-1); }
 
-int open_connection(const char* address, int port) {
-    int socket_fd;
+int parse(char* url_content, URL* url) {
+    // defining the regular expression
+    const char *regex ="ftp://(([^/:].+):([^/:@].+)@)*([^/]+)/(.+)";
+
+    // allocate memory for every component
+    url->user = malloc(BUFFER_SIZE);
+    CHECK_ALLOC(url->user);
+
+    url->pass = malloc(BUFFER_SIZE);
+    CHECK_ALLOC(url->pass);
+
+    url->host = malloc(BUFFER_SIZE);
+    CHECK_ALLOC(url->host);
+
+    url->path = malloc(BUFFER_SIZE);
+    CHECK_ALLOC(url->path);
+  
+    regex_t regex_comp;
+    regmatch_t groups[MAX_GROUPS];
+
+    // compilling the regular expression
+    if (regcomp(&regex_comp, regex, REG_EXTENDED)) {
+        fprintf(stderr, "[CONSOLE] Compiling the regex expression.\n");
+        return 1;
+    }
+
+    // executing the regular expression
+    if (regexec(&regex_comp, url_content, MAX_GROUPS, groups, 0)) {
+        fprintf(stderr, "[CONSOLE] Executing the regex expression.\n");
+        regfree(&regex_comp);
+        return 1;
+    }
+
+    // extracts user and password in case it exists or if it's anonymous
+    if (groups[2].rm_so != -1 && groups[3].rm_so != -1) {
+        size_t user_len = groups[2].rm_eo - groups[2].rm_so;
+        size_t pass_len = groups[3].rm_eo - groups[3].rm_so;
+        strncpy(url->user, &url_content[groups[2].rm_so], user_len);
+        strncpy(url->pass, &url_content[groups[3].rm_so], pass_len);
+        url->user[user_len] = '\0';
+        url->pass[pass_len] = '\0';
+    } else {
+        url->user = "anonymous";
+        url->pass = "anonymous";
+    }
+
+    if (groups[4].rm_so != -1 && groups[5].rm_so != -1) {
+        size_t host_len = groups[4].rm_eo - groups[4].rm_so;
+        size_t path_len = groups[5].rm_eo - groups[5].rm_so;
+        strncpy(url->host, &url_content[groups[4].rm_so], host_len);
+        strncpy(url->path, &url_content[groups[5].rm_so], path_len);
+        url->host[host_len] = '\0';
+        url->path[path_len] = '\0';
+    }
+
+    regfree(&regex_comp);
+    return 0;
+}
+
+int get_socket_line(int socket_fd, char* line) {
+    FILE* socket = fdopen(socket_fd, "r");
+    if (!socket) {
+        perror("[CONSOLE] Opening the socket as a file.\n");
+        return -1;
+    }
+
+    char* buffer = NULL;
+    size_t size = 0;
+    ssize_t number_bytes = getline(&buffer, &size, socket);
+
+    if (number_bytes < 0) {
+        free(buffer);
+        return -1;
+    }
+
+    strncpy(line, buffer, number_bytes);
+    line[number_bytes] = '\0';
+    free(buffer);
+    return 0;
+}
+
+int open_connection(URL url) {
+
+    struct hostent* host = gethostbyname(url.host);
+    if (host == NULL) {
+        perror("[CONSOLE] Invalid host.\n");
+        exit(-1);
+    }
+    
+    // convert the resolved IP address
+    const char* address = inet_ntoa(*(struct in_addr*)host->h_addr);
     struct sockaddr_in server_addr;
 
     // initialize addr struct
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = inet_addr(address);
-    server_addr.sin_port = htons(port);
+    server_addr.sin_port = htons(TCP_PORT);
 
     // create socket
+    int socket_fd;
+
     if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("[Error] Opening the socket.\n");
-        exit(EXIT_FAILURE);
+        perror("[CONSOLE] Opening the socket.\n");
+        exit(-1);
     }
 
     // connect to server
     if (connect(socket_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        perror("[Error] Connecting to the server.\n");
+        perror("[CONSOLE] Connecting to the server.\n");
         close(socket_fd);
-        exit(EXIT_FAILURE);
+        exit(-1);
     }
-
-    return socket_fd;
-}
-
-int open_control_connection(Url url) {
-    struct hostent* host = gethostbyname(url.host);
-    if (host == NULL) {
-        perror("[Error] Invalid host.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // convert the resolved IP addr
-    const char* address = inet_ntoa(*(struct in_addr*)host->h_addr);
-
-    // establish connection
-    int socket_fd = open_connection(address, TCP_PORT);
 
     // verify server's initial response code
-    if (!read_code(socket_fd, "220")) {
-        perror("[Error] Unexpected error code.\n");
+    char buffer[BUFFER_SIZE] = {0};
+    if (get_socket_line(socket_fd, buffer) != 0) {
+        perror("[CONSOLE] Failed to read from socket.\n");
         close(socket_fd);
-        exit(EXIT_FAILURE);
+        exit(-1);
     }
 
-    clean_socket(socket_fd);
+    buffer[3] = '\0';
+
+    if (strcmp(buffer, SERVER_READY) != 0) {
+        perror("[CONSOLE] Unexpected response from server.\n");
+        close(socket_fd);
+        exit(-1);
+    }
+
+    int count;
+    if (ioctl(socket_fd, FIONREAD, &count) == 0 && count > 0)  {
+        char buffer[1024]; // Temporary buffer for reading socket data
+        ssize_t bytes_read;
+
+        while ((bytes_read = recv(socket_fd, buffer, sizeof(buffer) - 1, 0)) > 0) {
+            buffer[bytes_read] = '\0'; // Null-terminate the string
+            if (bytes_read >= 4 && buffer[3] != '-') break;
+        }
+
+        if (bytes_read < 0) {
+            perror("[CONSOLE] Error reading from socket.\n");
+        };
+    }
+
     return socket_fd;
 }
 
-int login(int socket_fd, Url url) {
+int login(int socket_fd, URL url) {
     char user[BUFFER_SIZE], pass[BUFFER_SIZE], code[BUFFER_SIZE];
 
-    // prepare ftp commands
+    // Format the FTP commands for username and password
     snprintf(user, BUFFER_SIZE, "user %s\n", url.user);
-    snprintf(pass, BUFFER_SIZE, "pass %s\n", url.password);
+    snprintf(pass, BUFFER_SIZE, "pass %s\n", url.pass);
 
-    clean_socket(socket_fd);
+    int count;
+    if (ioctl(socket_fd, FIONREAD, &count) == 0 && count > 0)  {
+        char buffer[1024]; // Temporary buffer for reading socket data
+        ssize_t bytes_read;
 
-    // send username
-    write(socket_fd, user, strlen(user));
-    if (get_socket_line(socket_fd, code) != 0) {
-        perror("[Error] Reading the login response.\n");
-        exit(EXIT_FAILURE);
+        while ((bytes_read = recv(socket_fd, buffer, sizeof(buffer) - 1, 0)) > 0) {
+            buffer[bytes_read] = '\0'; // Null-terminate the string
+            if (bytes_read >= 4 && buffer[3] != '-') break;
+        }
+
+        if (bytes_read < 0) {
+            perror("[CONSOLE] Error reading from socket.\n");
+        };
     }
 
-    // validate the username response
+    // Send the username and read the response
+    if (write(socket_fd, user, strlen(user)) < 0 || get_socket_line(socket_fd, code) != 0) {
+        perror("[CONSOLE] Failed to send username or read response.\n");
+        exit(-1);
+    }
+
+    // Extract the response code
     code[3] = '\0';
-    if (strcmp(code, "331") != 0 && strcmp(code, "230") != 0) {
-        fprintf(stderr, "[Error] Invalid username: %s\n", url.user);
-        exit(EXIT_FAILURE);
+
+    // Validate the username response
+    if (strcmp(code, READY_PASS) != 0 && strcmp(code, LOGIN_SUCCESS) != 0) {
+        fprintf(stderr, "[CONSOLE] Invalid username: %s\n", url.user);
+        exit(-1);
     }
 
-    // send password command if needed
-    if (strcmp(code, "331") == 0) {
+    // If password is required, send it and validate the response
+    if (strcmp(code, READY_PASS) == 0) {
         write(socket_fd, pass, strlen(pass));
-        if (!read_code(socket_fd, "230")) {
-            fprintf(stderr, "[Error] Invalid password: %s\n", url.password);
-            exit(EXIT_FAILURE);
+        char buffer[BUFFER_SIZE] = {0};
+        if (get_socket_line(socket_fd, buffer) != 0) {
+            perror("Failed to read from socket.\n");
+            close(socket_fd);
+            exit(-1);
+        }
+
+        buffer[3] = '\0';
+        
+        if (strcmp(buffer, LOGIN_SUCCESS) != 0) {
+            fprintf(stderr, "[CONSOLE] Invalid password: %s\n", url.pass);
+            close(socket_fd);
+            exit(-1);
         }
     }
 
@@ -88,43 +210,72 @@ int login(int socket_fd, Url url) {
 }
 
 int enter_passive_mode(int socket_fd, char* address) {
-    char buf[BUFFER_SIZE], code[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE];
+    char code[4]; 
 
-    // send PASV command
-    const char* pasv = "pasv\n";
-    write(socket_fd, pasv, strlen(pasv));
-
-    // read server's response
-    if (get_socket_line(socket_fd, buf) != 0) {
-        perror("[Error] Entering the passive mode.\n");
-        exit(EXIT_FAILURE);
+    // Send the PASV command to the server
+    const char* pasv_command = "pasv\n";
+    if (write(socket_fd, pasv_command, strlen(pasv_command)) < 0) {
+        perror("[CONSOLE] Failed to send PASV command.\n");
+        exit(-1);
     }
 
-    // validate response code
-    strncpy(code, buf, 3);
-    code[3] = '\0';
-    if (strcmp(code, "227") != 0) {
-        fprintf(stderr, "[Error] Unexpected PASV response: %s\n", buf);
-        exit(EXIT_FAILURE);
+    // Read the server's response
+    if (get_socket_line(socket_fd, buffer) != 0) {
+        perror("[CONSOLE] Failed to read server response for PASV.\n");
+        exit(-1);
     }
 
-    // parse ip addr and port and execute ip addr
-    char* token = strtok(buf, "(");
-    for (int i = 0; i < 4; i++) {
-        token = strtok(NULL, ",");
+    // Extract and validate the response code
+    strncpy(code, buffer, 3);
+    code[3] = '\0';  // Null-terminate the code string
+    if (strcmp(code, PASSIVE_MODE_READY) != 0) {
+        fprintf(stderr, "[CONSOLE] Unexpected PASV response: %s\n", buffer);
+        exit(-1);
+    }
+
+    // Parse the server's response for IP address and port
+    char* start = strchr(buffer, '(');
+    char* end = strchr(buffer, ')');
+    if (!start || !end || start >= end) {
+        fprintf(stderr, "[CONSOLE] Malformed PASV response: %s\n", buffer);
+        exit(-1);
+    }
+
+    // Extract the data between parentheses
+    *end = '\0';  // Null-terminate at the closing parenthesis
+    char* data = start + 1;
+
+    // Parse the IP address
+    int i = 0;
+    char* token = strtok(data, ",");
+    while (token && i < 4) {
         strcat(address, token);
         if (i < 3) strcat(address, ".");
+        token = strtok(NULL, ",");
+        i++;
     }
 
-    // extract port
-    int portMSB = atoi(strtok(NULL, ","));
-    int portLSB = atoi(strtok(NULL, ","));
+    // Parse the port
+    if (!token) {
+        fprintf(stderr, "[CONSOLE] Incomplete PASV response: %s\n", buffer);
+        exit(-1);
+    }
+    int portMSB = atoi(token);
 
-    return portMSB * 256 + portLSB;
+    token = strtok(NULL, ",");
+    if (!token) {
+        fprintf(stderr, "[CONSOLE] Missing port information in PASV response: %s\n", buffer);
+        exit(-1);
+    }
+    int portLSB = atoi(token);
+
+    // Calculate and return the port number
+    return (portMSB << 8) | portLSB;
 }
 
-void get_file(int socket_fd, Url url, int datafd) {
-    char buf[1024];
+void get_file(int socket_fd, URL url, int datafd) {
+    char buffer[1024];
 
     // send retr command
     const char retr[] = "retr ";
@@ -132,25 +283,27 @@ void get_file(int socket_fd, Url url, int datafd) {
     write(socket_fd, url.path, strlen(url.path));
     write(socket_fd, "\n", 1);
 
+    char *name = strrchr(url.path, '/');
+    name = (name == NULL) ? url.path : name+1;
     // open output file
-    int file = open(get_file_name(url.path), O_WRONLY | O_CREAT, 0777);
+    int file = open(name, O_WRONLY | O_CREAT, 0777);
     if (file == -1) {
-        perror("[Error] Creating file.\n");
-        exit(EXIT_FAILURE);
+        perror("[CONSOLE] Creating file.\n");
+        exit(-1);
     }
 
     // read from data socket and write to file
-    ssize_t nbytes; 
-    while ((nbytes = read(datafd, buf, sizeof(buf))) > 0) {
-        if (write(file, buf, nbytes) != nbytes) {
-            perror("[Error] Writing file.\n");
+    ssize_t number_bytes; 
+    while ((number_bytes = read(datafd, buffer, sizeof(buffer))) > 0) {
+        if (write(file, buffer, number_bytes) != number_bytes) {
+            perror("[CONSOLE] Writing file.\n");
             close(file);
-            exit(EXIT_FAILURE);
+            exit(-1);
         }
     }
 
-    if (nbytes < 0) {
-        perror("[Error] Reading data.\n");
+    if (number_bytes < 0) {
+        perror("[CONSOLE] Reading data.\n");
     }
 
     close(file);
