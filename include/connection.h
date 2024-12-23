@@ -90,3 +90,11 @@ int enter_passive_mode(int sockfd, char* address);
  * @param datafd Data socket descriptor.
  */
 void get_file(int sockfd, URL url, int datafd);
+
+/**
+ * @brief Close the socket connection.
+ * 
+ * @param sockfd Socket file descriptor.
+ * @param datafd Data socket descriptor.
+ */
+void close_socket(int sockfd, int datafd);

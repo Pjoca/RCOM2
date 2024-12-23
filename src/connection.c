@@ -80,6 +80,16 @@ int get_socket_line(int socket_fd, char* line) {
         return -1;
     }
 
+    // Remove trailing newline if present
+    if (number_bytes > 0 && buffer[number_bytes - 1] == '\n') {
+        buffer[number_bytes - 1] = '\0';
+        number_bytes--;
+    }
+    if (number_bytes > 0 && buffer[number_bytes - 1] == '\r') {
+        buffer[number_bytes - 1] = '\0';
+        number_bytes--;
+    }
+
     strncpy(line, buffer, number_bytes);
     line[number_bytes] = '\0';
     free(buffer);
@@ -156,7 +166,7 @@ int open_connection(URL url) {
 int login(int socket_fd, URL url) {
     char user[BUFFER_SIZE], pass[BUFFER_SIZE], code[BUFFER_SIZE];
 
-    // Format the FTP commands for username and password
+    // format the FTP commands for username and password
     snprintf(user, BUFFER_SIZE, "USER %s\r\n", url.user);
     snprintf(pass, BUFFER_SIZE, "PASS %s\r\n", url.pass);
 
@@ -179,7 +189,7 @@ int login(int socket_fd, URL url) {
         }
     }
 
-    // Send the username and read the response
+    // send the username and read the response
     if (write(socket_fd, user, strlen(user)) < 0) {
         perror("[CONSOLE] Failed to send username.\n");
         exit(-1);
@@ -192,18 +202,17 @@ int login(int socket_fd, URL url) {
     }
     printf("[DEBUG] Response after USER command: %s\n", code);
 
-    // Extract the response code
+    // extract the response code
     code[3] = '\0';
-
     printf("[CONSOLE] Response code: %s\n", code);
 
-    // Validate the username response
-    if (strcmp(code, READY_PASS) != 0 && strcmp(code, LOGIN_SUCCESS) != 0) {
+    // validate the username response
+    if (strcmp(code, READY_PASS) != 0) {
         fprintf(stderr, "[CONSOLE] Invalid username: %s\n", url.user);
         exit(-1);
     }
 
-    // If password is required, send it and validate the response
+    // if password is required, send it and validate the response
     if (strcmp(code, READY_PASS) == 0) {
         if (write(socket_fd, pass, strlen(pass)) < 0) {
             perror("[CONSOLE] Failed to send password.\n");
@@ -213,19 +222,34 @@ int login(int socket_fd, URL url) {
         printf("[DEBUG] PASS command sent.\n");
 
         char buffer[BUFFER_SIZE] = {0};
-        if (get_socket_line(socket_fd, buffer) != 0) {
-            perror("Failed to read from socket after sending password.\n");
-            close(socket_fd);
-            exit(-1);
-        }
-        printf("[DEBUG] Response after PASS command: %s\n", buffer);
+        int final_response = 0;
+        while (!final_response) {
+            if (get_socket_line(socket_fd, buffer) != 0) {
+                perror("Failed to read from socket after sending password.\n");
+                close(socket_fd);
+                exit(-1);
+            }
+            printf("[DEBUG] Response after PASS command: %s\n", buffer);
 
-        buffer[3] = '\0';
-        
-        if (strcmp(buffer, LOGIN_SUCCESS) != 0) {
-            fprintf(stderr, "[CONSOLE] Invalid password: %s\n", url.pass);
-            close(socket_fd);
-            exit(-1);
+            // Check for empty lines and continue
+            if (strlen(buffer) <= 0) {
+                continue;
+            }
+            
+            // Check if this is the final response line
+            if (strlen(buffer) >= 4) {
+                if (buffer[3] != '-') {  // Final response line
+                    buffer[3] = '\0';
+                    if (strcmp(buffer, LOGIN_SUCCESS) == 0) {
+                        printf("[DEBUG] Login successful\n");
+                        final_response = 1;
+                    } else {
+                        fprintf(stderr, "[CONSOLE] Login failed: %s\n", buffer);
+                        close(socket_fd);
+                        exit(-1);
+                    }
+                }
+            }
         }
     }
 
@@ -236,21 +260,21 @@ int enter_passive_mode(int socket_fd, char* address) {
     char buffer[BUFFER_SIZE];
     char code[4]; 
 
-    // Send the PASV command to the server
+    // send the PASV command to the server
     printf("[DEBUG] Sending PASV command");
     if (write(socket_fd, "PASV\r\n", strlen("PASV\r\n")) < 0) {
         perror("[CONSOLE] Failed to send PASV command.\n");
         exit(-1);
     }
 
-    // Read the server's response
+    // read the server's response
     if (get_socket_line(socket_fd, buffer) != 0) {
         perror("[CONSOLE] Failed to read server response for PASV.\n");
         exit(-1);
     }
     printf("[DEBUG] Server response for PASV: %s\n", buffer);
 
-    // Extract and validate the response code
+    // extract and validate the response code
     strncpy(code, buffer, 3);
     code[3] = '\0';  // Null-terminate the code string
     printf("[DEBUG] Response code for PASV: %s\n", code);
@@ -259,7 +283,7 @@ int enter_passive_mode(int socket_fd, char* address) {
         exit(-1);
     }
 
-    // Parse the server's response for IP address and port
+    // parse the server's response for IP address and port
     char* start = strchr(buffer, '(');
     char* end = strchr(buffer, ')');
     if (!start || !end || start >= end) {
@@ -268,11 +292,11 @@ int enter_passive_mode(int socket_fd, char* address) {
     }
     printf("[DEBUG] PASV response data: %s\n", start + 1);
 
-    // Extract the data between parentheses
+    // extract the data between parentheses
     *end = '\0';  // Null-terminate at the closing parenthesis
     char* data = start + 1;
 
-    // Parse the IP address
+    // parse the IP address
     int i = 0;
     char* token = strtok(data, ",");
     while (token && i < 4) {
@@ -283,7 +307,7 @@ int enter_passive_mode(int socket_fd, char* address) {
     }
     printf("[DEBUG] Parsed IP address: %s\n", address);
 
-    // Parse the port
+    // parse the port
     if (!token) {
         fprintf(stderr, "[CONSOLE] Incomplete PASV response: %s\n", buffer);
         exit(-1);
@@ -308,7 +332,7 @@ int enter_passive_mode(int socket_fd, char* address) {
 void get_file(int socket_fd, URL url, int datafd) {
     char buffer[1024];
 
-    // Send RETR command
+    // send RETR command
     printf("[DEBUG] Sending RETR command RETR: %s\n", url.path);
     if (write(socket_fd, "RETR ", strlen("RETR ")) < 0) {
         perror("[CONSOLE] Failed to send RETR command.\n");
@@ -327,7 +351,7 @@ void get_file(int socket_fd, URL url, int datafd) {
     name = (name == NULL) ? url.path : name + 1;
     printf("[DEBUG] Output file name: %s\n", name);
 
-    // Open output file
+    // open output file
     int file = open(name, O_WRONLY | O_CREAT, 0777);
     if (file == -1) {
         perror("[CONSOLE] Creating file.\n");
@@ -352,5 +376,4 @@ void get_file(int socket_fd, URL url, int datafd) {
     }
 
     close(file);
-    printf("[DEBUG] File closed: %s\n", name);
 }
