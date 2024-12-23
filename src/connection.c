@@ -193,7 +193,7 @@ int enter_passive_mode(int *sockfd, char* address) {
     printf("[DEBUG] PASV response data: %s\n", start + 1);
 
     // extract the data between parentheses
-    *end = '\0';  // Null-terminate at the closing parenthesis
+    *end = '\0';
     char* data = start + 1;
 
     // parse the IP address
@@ -205,7 +205,7 @@ int enter_passive_mode(int *sockfd, char* address) {
         token = strtok(NULL, ",");
         i++;
     }
-    printf("[DEBUG] Parsed IP address: %s\n", address);
+    printf("[CONSOLE] Parsed IP address: %s\n", address);
 
     // parse the port
     if (!token) {
@@ -213,7 +213,7 @@ int enter_passive_mode(int *sockfd, char* address) {
         exit(-1);
     }
     int portMSB = atoi(token);
-    printf("[DEBUG] Parsed port MSB: %d\n", portMSB);
+    printf("[CONSOLE] Parsed port MSB: %d\n", portMSB);
 
     token = strtok(NULL, ",");
     if (!token) {
@@ -221,11 +221,11 @@ int enter_passive_mode(int *sockfd, char* address) {
         exit(-1);
     }
     int portLSB = atoi(token);
-    printf("[DEBUG] Parsed port LSB: %d\n", portLSB);
+    printf("[CONSOLE] Parsed port LSB: %d\n", portLSB);
 
     // calculate and return the port number
     int port = (portMSB << 8) | portLSB;
-    printf("[DEBUG] Calculated port: %d\n", port);
+    printf("[CONSOLE] Calculated port: %d\n", port);
     return port;
 }
 

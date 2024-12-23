@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "[CONSOLE] Establishing the control connection.\n");
         exit(-1);
     }
-    printf("[DEBUG] Connected to server.\n");
+    printf("[CONSOLE] Connected to server.\n");
 
     if (sockfd < 0) {
         fprintf(stderr, "[CONSOLE] Failed to establish the control connection.\n");
@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
     }
 
     buffer[3] = '\0';
-    printf("[DEBUG] Response after connection: %s\n", buffer);
+    printf("[CONSOLE] Response after connection: %s\n", buffer);
 
     if (strcmp(buffer, SERVER_READY) != 0) {
         perror("Failed to connect to the service");
