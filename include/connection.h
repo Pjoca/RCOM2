@@ -25,6 +25,10 @@
 #define READY_PASS "331"
 #define LOGIN_SUCCESS "230"
 #define PASSIVE_MODE_READY "227"
+#define BIN_MODE "150"
+#define ALR_BIN_MODE "125"
+#define TRANSFER_COMPLETE "226"
+#define GOODBYE "221"
 
 /**
  * @brief Describes an URL struct. 
@@ -52,26 +56,19 @@ int parse(char* url_content, URL* url);
  * @brief Get the socket line object
  * 
  * @param socket_fd Socket descriptor.
- * @param line Line to be read.
+ * @param url URL already parsed.
  * @return int Returns 0 when successful and -1 otherwise.
  */
-int get_socket_line(int socket_fd, char* line);
-/**
- * @brief Creates connection used for control.
- * 
- * @param url Url struct that contains the url of the connection the needs to be opened.
- * @return int Returns sockets file descriptor.
- */
-int open_connection(URL url);
+int open_connection(int *sockfd, URL url);
 
 /**
  * @brief Login in TCP connection.
  * 
- * @param sockfd 
+ * @param sockfd Socket file descriptor.
  * @param url URL already parsed which may contain the credentials.
  * @return int Returns 0 when successfull.
  */
-int login(int sockfd, URL url);
+int login(int *sockfd, URL url);
 
 /**
  * @brief Entering the passive mode.
@@ -80,7 +77,7 @@ int login(int sockfd, URL url);
  * @param address Will be filled with the address provided by the server.
  * @return int Port number where the server is waiting for a connection.
  */
-int enter_passive_mode(int sockfd, char* address);
+int enter_passive_mode(int *sockfd, char* address);
 
 /**
  * @brief Get file from data connection.
@@ -89,7 +86,7 @@ int enter_passive_mode(int sockfd, char* address);
  * @param url URL already parsed.
  * @param datafd Data socket descriptor.
  */
-void get_file(int sockfd, URL url, int datafd);
+int get_file(int *sockfd, URL url, int *datafd);
 
 /**
  * @brief Close the socket connection.
@@ -97,4 +94,11 @@ void get_file(int sockfd, URL url, int datafd);
  * @param sockfd Socket file descriptor.
  * @param datafd Data socket descriptor.
  */
-void close_socket(int sockfd, int datafd);
+void close_socket(int *sockfd, int datafd);
+
+/**
+ * @brief Close the server connection.
+ * 
+ * @param sockfd Socket file descriptor.
+ */
+int server_close(int *sockfd);

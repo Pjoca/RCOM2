@@ -19,34 +19,57 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "[CONSOLE] Invalid URL.\n");
         exit(-1);
     }
+    printf("[CONSOLE] URL parsed.\n");
 
     // open control connection
-    int socket_fd = open_connection(url);
-    if (socket_fd < 0) {
+    int sockfd;
+    if (open_connection(&sockfd, url) != 0) {
         fprintf(stderr, "[CONSOLE] Establishing the control connection.\n");
+        exit(-1);
+    }
+    printf("[DEBUG] Connected to server.\n");
+
+    if (sockfd < 0) {
+        fprintf(stderr, "[CONSOLE] Failed to establish the control connection.\n");
         exit(-1);
     }
     printf("[CONSOLE] Connection established at %s\n", url.host);
 
+    sleep(1);
+    char buffer[1024];
+
+    if (read(sockfd, buffer, 1024) < 0) {
+        perror("read()");
+        exit(-1);
+    }
+
+    buffer[3] = '\0';
+    printf("[DEBUG] Response after connection: %s\n", buffer);
+
+    if (strcmp(buffer, SERVER_READY) != 0) {
+        perror("Failed to connect to the service");
+        exit(-1);
+    }
+
     // login to ftp server
-    if (login(socket_fd, url) != 0) {
+    if (login(&sockfd, url) != 0) {
         fprintf(stderr, "[CONSOLE] Login failed.\n");
-        close(socket_fd);
+        close(sockfd);
         exit(-1);
     }
     printf("[CONSOLE] Login.\n");
 
     // entering passive mode & establishing data connection
     char address[BUFFER_SIZE] = {0};
-    int port = enter_passive_mode(socket_fd, address);
+    int port = enter_passive_mode(&sockfd, address);
     if (port < 0) {
         fprintf(stderr, "[CONSOLE] Entering the passive mode.\n");
-        close(socket_fd);
+        close(sockfd);
         exit(-1);
     }
 
     // establishing data connection
-    int socket_data;
+    int datafd;
     struct sockaddr_in server_addr;
 
     // initialize addr struct
@@ -56,24 +79,34 @@ int main(int argc, char *argv[]) {
     server_addr.sin_port = htons(port);
 
     // create socket
-    if ((socket_data = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if ((datafd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("[CONSOLE] Opening the socket.\n");
         exit(-1);
     }
 
     // connect to server
-    if (connect(socket_data, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+    if (connect(datafd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("[CONSOLE] Connecting to the server.\n");
-        close(socket_data);
+        close(datafd);
         exit(-1);
     }
 
     printf("[CONSOLE] Connection established at %s:%d\n", address, port);
 
-    get_file(socket_fd, url, socket_data);
+    if (get_file(&sockfd, url, &datafd) != 0) {
+        fprintf(stderr, "[CONSOLE] Getting the file.\n");
+        close(sockfd);
+        close(datafd);
+        exit(-1);
+    }
 
-    close(socket_fd);
-    close(socket_data);
+    if (server_close(&sockfd) != 0) {
+        fprintf(stderr, "[CONSOLE] Closing the connection.\n");
+        close(sockfd);
+        close(datafd);
+        exit(-1);
+    }
 
+    close(sockfd);
     return 0;
 }

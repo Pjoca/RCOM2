@@ -3,13 +3,6 @@ LIBS = -lm
 CC = gcc
 CFLAGS = -Wall
 
-# Default arguments
-ARG1 = ftp://ftp.up.pt/pub/kodi/timestamp.txt
-ARG2 = ftp://rcom:rcom@netlab1.fe.up.pt/pipe.txt
-ARG3 = ftp://rcom:rcom@netlab1.fe.up.pt/files/crab.mp4
-ARG4 = ftp://ftp.gnu.org/gnu/gdb/gdb-5.2.1.tar.gz
-ARG5 = ftp://anonymous:anonymous@ftp.up.pt/pub/debian/doc/social-contract.txt
-
 .PHONY: default all clean
 
 default: $(TARGET)

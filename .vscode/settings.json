@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "connection.h": "c"
+        "connection.h": "c",
+        "ioctl.h": "c",
+        "download.h": "c"
     }
 }
